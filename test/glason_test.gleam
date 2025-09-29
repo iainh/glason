@@ -1,10 +1,13 @@
 import glason
 import glason/decoder/tokenizer
 import glason/encode
+import glason/error
 import glason/fragment
 import glason/options
 import glason/value
+import gleam/list
 import gleam/option
+import gleam/result
 import gleam/string
 import gleeunit
 import gleeunit/should
@@ -204,6 +207,11 @@ pub fn decode_surrogate_error_cases_test() {
   |> should.be_error()
 }
 
+pub fn decode_unicode_noncharacter_codepoints_test() {
+  assert_codepoints("[\"\\uDBFF\\uDFFE\"]", [0x10FFFE])
+  assert_codepoints("[\"\\uD83F\\uDFFE\"]", [0x1FFFE])
+}
+
 pub fn decode_invalid_leading_zero_test() {
   glason.decode("01")
   |> should.be_error()
@@ -393,4 +401,23 @@ pub fn encode_nested_custom_type_test() {
   |> should.equal(Ok(
     "{\"name\":\"Ada\",\"tags\":[{\"name\":\"gleam\"}],\"cached\":{\"precomputed\":false}}",
   ))
+}
+
+fn assert_codepoints(json: String, expected: List(Int)) {
+  decode_codepoints(json)
+  |> should.equal(Ok(expected))
+}
+
+fn decode_codepoints(json: String) -> Result(List(Int), error.DecodeError) {
+  glason.decode(json)
+  |> result.then(fn(value) {
+    case value {
+      value.Array([value.String(text)]) ->
+        string.to_utf_codepoints(text)
+        |> list.map(string.utf_codepoint_to_int)
+        |> Ok
+
+      _ -> Error(error.not_implemented_decode_error())
+    }
+  })
 }
