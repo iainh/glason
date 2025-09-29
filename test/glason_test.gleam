@@ -169,3 +169,12 @@ pub fn decode_strict_map_duplicate_test() {
   glason.decode_with("{\"a\":1,\"a\":2}", decode_opts)
   |> should.be_error()
 }
+
+pub fn decode_string_copy_mode_test() {
+  let decode_opts =
+    options.default_decode_options()
+    |> options.set_string_mode(options.StringsCopy)
+
+  glason.decode_with("\"copy\"", decode_opts)
+  |> should.equal(Ok(value.String("copy")))
+}
