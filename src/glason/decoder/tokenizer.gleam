@@ -98,8 +98,13 @@ fn read_string(
         Error(err) -> Error(err)
       }
 
-    [92, .._rest] ->
-      Error(escape_not_supported_error(current_position))
+    [92, ..rest] ->
+      case read_escape(rest, current_position + 1) {
+        Ok(#(codepoint, remainder, next_position)) ->
+          read_string(remainder, next_position, [codepoint, ..acc])
+
+        Error(err) -> Error(err)
+      }
 
     [codepoint, ..rest] ->
       read_string(rest, current_position + 1, [codepoint, ..acc])
@@ -154,17 +159,89 @@ fn unexpected_end_error(position: Int) -> error.DecodeError {
   error.decode_error(error.UnexpectedEnd, "unexpected end of input", position, None)
 }
 
-fn escape_not_supported_error(position: Int) -> error.DecodeError {
+fn number_format_error(position: Int) -> error.DecodeError {
+  error.decode_error(error.InvalidNumber, "invalid number literal", position, None)
+}
+
+fn read_escape(
+  codepoints: List(Int),
+  position: Int,
+) -> Result(#(Int, List(Int), Int), error.DecodeError) {
+  case codepoints {
+    [] -> Error(unexpected_end_error(position))
+
+    [34, ..rest] -> Ok(#(34, rest, position + 1))
+    [92, ..rest] -> Ok(#(92, rest, position + 1))
+    [47, ..rest] -> Ok(#(47, rest, position + 1))
+    [98, ..rest] -> Ok(#(8, rest, position + 1))
+    [102, ..rest] -> Ok(#(12, rest, position + 1))
+    [110, ..rest] -> Ok(#(10, rest, position + 1))
+    [114, ..rest] -> Ok(#(13, rest, position + 1))
+    [116, ..rest] -> Ok(#(9, rest, position + 1))
+
+    [117, ..rest] ->
+      case rest {
+        [a, b, c, d, ..tail] ->
+          decode_unicode_escape([a, b, c, d], tail, position + 5)
+        _ -> Error(unexpected_end_error(position))
+      }
+
+    [codepoint, .._rest] ->
+      Error(invalid_escape_error(codepoint, position))
+  }
+}
+
+fn decode_unicode_escape(
+  digits: List(Int),
+  rest: List(Int),
+  next_position: Int,
+) -> Result(#(Int, List(Int), Int), error.DecodeError) {
+  case hex_digits_to_int(digits) {
+    Ok(codepoint) -> Ok(#(codepoint, rest, next_position))
+    Error(_) -> Error(invalid_unicode_escape_error(next_position - 4))
+  }
+}
+
+fn hex_digits_to_int(digits: List(Int)) -> Result(Int, Nil) {
+  hex_digits_to_int_loop(digits, 0)
+}
+
+fn hex_digits_to_int_loop(digits: List(Int), acc: Int) -> Result(Int, Nil) {
+  case digits {
+    [] -> Ok(acc)
+    [digit, ..rest] ->
+      case hex_value(digit) {
+        Ok(value) -> hex_digits_to_int_loop(rest, acc * 16 + value)
+        Error(_) -> Error(Nil)
+      }
+  }
+}
+
+fn hex_value(codepoint: Int) -> Result(Int, Nil) {
+  case codepoint {
+    cp if cp >= 48 && cp <= 57 -> Ok(cp - 48)
+    cp if cp >= 65 && cp <= 70 -> Ok(cp - 55)
+    cp if cp >= 97 && cp <= 102 -> Ok(cp - 87)
+    _ -> Error(Nil)
+  }
+}
+
+fn invalid_escape_error(codepoint: Int, position: Int) -> error.DecodeError {
   error.decode_error(
     error.DecodeNotImplemented,
-    "string escape sequences not implemented",
+    "invalid escape sequence: " <> int.to_string(codepoint),
     position,
     None,
   )
 }
 
-fn number_format_error(position: Int) -> error.DecodeError {
-  error.decode_error(error.InvalidNumber, "invalid number literal", position, None)
+fn invalid_unicode_escape_error(position: Int) -> error.DecodeError {
+  error.decode_error(
+    error.DecodeNotImplemented,
+    "invalid unicode escape",
+    position,
+    None,
+  )
 }
 
 fn reversed_ints_to_string(reversed: List(Int), position: Int) -> Result(String, error.DecodeError) {

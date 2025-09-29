@@ -1,4 +1,5 @@
 import gleam/int
+import gleam/list
 import gleam/option.{None}
 import glason/error
 import glason/options
@@ -13,15 +14,15 @@ import glason/decoder/tokenizer.{
   TokenEndArray,
   TokenStartObject,
   TokenEndObject,
-  TokenColon,
   TokenComma,
+  TokenColon,
 }
 
 pub fn parse(tokens: List(Token), _decode_options: options.DecodeOptions) -> Result(value.Value, error.DecodeError) {
-  case tokens {
-    [token] -> token_to_value(token)
-    [] -> Error(empty_input_error())
-    _ -> Error(complex_structure_error())
+  case parse_value(tokens) {
+    Ok(#(result, [])) -> Ok(result)
+    Ok(#(_result, _rest)) -> Error(extra_tokens_error())
+    Error(err) -> Error(err)
   }
 }
 
@@ -33,24 +34,22 @@ pub fn parse_binary(input: String, decode_options: options.DecodeOptions) -> Res
   }
 }
 
-fn token_to_value(token: Token) -> Result(value.Value, error.DecodeError) {
-  case token {
-    TokenValue(inner) -> Ok(inner)
+fn parse_value(tokens: List(Token)) -> Result(#(value.Value, List(Token)), error.DecodeError) {
+  case tokens {
+    [] -> Error(empty_input_error())
+    [TokenValue(inner), ..rest] -> Ok(#(inner, rest))
+    [TokenString(text), ..rest] -> Ok(#(value.String(text), rest))
+    [TokenNumber(text), ..rest] -> parse_number(text, rest)
+    [TokenStartArray, ..rest] -> parse_array(rest, [])
+    [TokenStartObject, ..rest] -> parse_object(rest, [])
+    [token, .._] -> Error(unexpected_token_error(token))
+  }
+}
 
-    TokenString(text) -> Ok(value.String(text))
-
-    TokenNumber(text) ->
-      case int.parse(text) {
-        Ok(number) -> Ok(value.Int(number))
-        Error(_) -> Error(number_not_supported_error())
-      }
-
-    TokenStartArray -> Error(complex_structure_error())
-    TokenEndArray -> Error(complex_structure_error())
-    TokenStartObject -> Error(complex_structure_error())
-    TokenEndObject -> Error(complex_structure_error())
-    TokenColon -> Error(complex_structure_error())
-    TokenComma -> Error(complex_structure_error())
+fn parse_number(text: String, rest: List(Token)) -> Result(#(value.Value, List(Token)), error.DecodeError) {
+  case int.parse(text) {
+    Ok(number) -> Ok(#(value.Int(number), rest))
+    Error(_) -> Error(number_not_supported_error())
   }
 }
 
@@ -58,10 +57,10 @@ fn empty_input_error() -> error.DecodeError {
   error.decode_error(error.UnexpectedEnd, "no tokens produced for input", 0, None)
 }
 
-fn complex_structure_error() -> error.DecodeError {
+fn extra_tokens_error() -> error.DecodeError {
   error.decode_error(
     error.DecodeNotImplemented,
-    "parsing for complex JSON structures not implemented",
+    "additional tokens found after parsing value",
     0,
     None,
   )
@@ -69,4 +68,129 @@ fn complex_structure_error() -> error.DecodeError {
 
 fn number_not_supported_error() -> error.DecodeError {
   error.decode_error(error.InvalidNumber, "number format not yet supported", 0, None)
+}
+
+fn unexpected_token_error(_token: Token) -> error.DecodeError {
+  error.decode_error(
+    error.DecodeNotImplemented,
+    "unexpected token encountered",
+    0,
+    None,
+  )
+}
+
+fn parse_object(tokens: List(Token), acc: List(#(String, value.Value))) -> Result(#(value.Value, List(Token)), error.DecodeError) {
+  case tokens {
+    [] -> Error(empty_input_error())
+    [TokenEndObject, ..rest] ->
+      Ok(#(value.Object(list.reverse(acc)), rest))
+    [TokenString(key), ..rest] ->
+      parse_object_colon(rest, key, acc)
+    [TokenValue(value.String(key)), ..rest] ->
+      parse_object_colon(rest, key, acc)
+    _ -> Error(object_key_error())
+  }
+}
+
+fn parse_object_colon(
+  tokens: List(Token),
+  key: String,
+  acc: List(#(String, value.Value)),
+) -> Result(#(value.Value, List(Token)), error.DecodeError) {
+  case tokens {
+    [TokenColon, ..rest] ->
+      case parse_value(rest) {
+        Ok(#(val, after_value)) ->
+          parse_object_after_value(after_value, key, val, acc)
+        Error(err) -> Error(err)
+      }
+    _ -> Error(object_colon_error())
+  }
+}
+
+fn parse_object_after_value(
+  tokens: List(Token),
+  key: String,
+  val: value.Value,
+  acc: List(#(String, value.Value)),
+) -> Result(#(value.Value, List(Token)), error.DecodeError) {
+  let updated = [#(key, val), ..acc]
+  case tokens {
+    [TokenComma, ..rest] -> parse_object(rest, updated)
+    [TokenEndObject, ..rest] ->
+      Ok(#(value.Object(list.reverse(updated)), rest))
+    [] -> Error(empty_input_error())
+    _ -> Error(object_separator_error())
+  }
+}
+
+fn parse_array(tokens: List(Token), acc: List(value.Value)) -> Result(#(value.Value, List(Token)), error.DecodeError) {
+  case tokens {
+    [] -> Error(empty_input_error())
+
+    [TokenEndArray, ..rest] ->
+      Ok(#(value.Array(list.reverse(acc)), rest))
+
+    _ ->
+      case parse_value(tokens) {
+        Ok(#(element, rest)) ->
+          parse_array_after_element(rest, [element, ..acc])
+        Error(err) -> Error(err)
+      }
+  }
+}
+
+fn parse_array_after_element(tokens: List(Token), acc: List(value.Value)) -> Result(#(value.Value, List(Token)), error.DecodeError) {
+  case tokens {
+    [] -> Error(empty_input_error())
+
+    [TokenComma, ..rest] ->
+      case parse_value(rest) {
+        Ok(#(element, remainder)) ->
+          parse_array_after_element(remainder, [element, ..acc])
+        Error(err) -> Error(err)
+      }
+
+    [TokenEndArray, ..rest] ->
+      Ok(#(value.Array(list.reverse(acc)), rest))
+
+    [_token, .._] ->
+      Error(array_separator_error())
+  }
+}
+
+fn array_separator_error() -> error.DecodeError {
+  error.decode_error(
+    error.DecodeNotImplemented,
+    "expected comma or closing bracket in array",
+    0,
+    None,
+  )
+}
+
+fn object_key_error() -> error.DecodeError {
+  error.decode_error(
+    error.DecodeNotImplemented,
+    "expected string key in object",
+    0,
+    None,
+  )
+}
+
+fn object_colon_error() -> error.DecodeError {
+  error.decode_error(
+    error.DecodeNotImplemented,
+    "expected colon after object key",
+    0,
+    None,
+  )
+}
+
+fn object_separator_error() -> error.DecodeError {
+  error.decode_error(
+    error.DecodeNotImplemented,
+    "expected comma or closing brace in object",
+    0,
+    None,
+  )
 }
