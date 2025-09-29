@@ -1,5 +1,6 @@
 import glason/encoder/escape
 import glason/error
+import glason/fragment
 import glason/options
 import glason/value
 import gleam/bytes_builder as bb
@@ -25,6 +26,7 @@ pub fn encode_value(
     value.Object(pairs) -> encode_object(pairs, encode_options)
     value.Ordered(obj) ->
       encode_object(value.ordered_object_to_list(obj), encode_options)
+    value.Fragment(frag) -> encode_fragment(frag, encode_options)
   }
 }
 
@@ -169,6 +171,13 @@ fn encode_decimal(
   number: value.DecimalNumber,
 ) -> Result(bb.BytesBuilder, error.EncodeError) {
   Ok(bb.from_string(value.decimal_to_string(number)))
+}
+
+fn encode_fragment(
+  fragment_value: fragment.Fragment,
+  encode_options: options.EncodeOptions,
+) -> Result(bb.BytesBuilder, error.EncodeError) {
+  fragment.to_builder(fragment_value, encode_options)
 }
 
 fn detect_duplicate_key(pairs: List(#(String, value.Value))) -> Option(String) {

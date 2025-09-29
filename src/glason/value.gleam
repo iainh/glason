@@ -1,3 +1,4 @@
+import glason/fragment
 import gleam/option.{type Option, None, Some}
 
 pub type Value {
@@ -10,6 +11,7 @@ pub type Value {
   Array(List(Value))
   Object(List(#(String, Value)))
   Ordered(OrderedObject)
+  Fragment(fragment.Fragment)
 }
 
 pub type DecimalNumber {
@@ -27,6 +29,10 @@ pub fn ordered_object(values: List(#(String, Value))) -> OrderedObject {
 pub fn ordered_object_to_list(object: OrderedObject) -> List(#(String, Value)) {
   let OrderedObject(values) = object
   values
+}
+
+pub fn fragment(value: fragment.Fragment) -> Value {
+  Fragment(value)
 }
 
 pub fn decimal(original: String) -> DecimalNumber {

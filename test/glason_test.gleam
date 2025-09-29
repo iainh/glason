@@ -1,7 +1,10 @@
 import glason
 import glason/decoder/tokenizer
+import glason/encode
+import glason/fragment
 import glason/options
 import glason/value
+import gleam/option
 import gleam/string
 import gleeunit
 import gleeunit/should
@@ -243,4 +246,61 @@ pub fn encode_unicode_safe_escape_test() {
 
   glason.encode_with(value.String("€"), encode_opts)
   |> should.equal(Ok("\"\\u20AC\""))
+}
+
+pub fn encode_fragment_array_test() {
+  let frag = fragment.from_string("{\"cached\":true}")
+  glason.encode(value.Array([value.Fragment(frag)]))
+  |> should.equal(Ok("[{\"cached\":true}]"))
+}
+
+type Tag {
+  Tag(name: String)
+}
+
+type Profile {
+  Profile(
+    name: String,
+    tags: List(Tag),
+    cached: fragment.Fragment,
+    bio: option.Option(String),
+  )
+}
+
+pub fn encode_nested_custom_type_test() {
+  let tag_encoder =
+    encode.object([
+      encode.field("name", encode.string(), fn(tag) {
+        let Tag(name) = tag
+        name
+      }),
+    ])
+
+  let profile_encoder =
+    encode.object([
+      encode.field("name", encode.string(), fn(profile) {
+        let Profile(name, _, _, _) = profile
+        name
+      }),
+      encode.field("tags", encode.list(tag_encoder), fn(profile) {
+        let Profile(_, tags, _, _) = profile
+        tags
+      }),
+      encode.field("cached", encode.fragment(), fn(profile) {
+        let Profile(_, _, cached, _) = profile
+        cached
+      }),
+      encode.optional_field("bio", encode.string(), fn(profile) {
+        let Profile(_, _, _, bio) = profile
+        bio
+      }),
+    ])
+
+  let cached = fragment.from_string("{\"precomputed\":false}")
+  let profile = Profile("Ada", [Tag("gleam")], cached, option.None)
+
+  encode.encode(profile, profile_encoder)
+  |> should.equal(Ok(
+    "{\"name\":\"Ada\",\"tags\":[{\"name\":\"gleam\"}],\"cached\":{\"precomputed\":false}}",
+  ))
 }
