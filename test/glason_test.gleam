@@ -179,6 +179,31 @@ pub fn decode_unicode_escape_sequences_test() {
   |> should.be_error()
 }
 
+pub fn decode_surrogate_pair_arrays_test() {
+  glason.decode("[\"\\uD801\\uDC37\"]")
+  |> should.equal(Ok(value.Array([value.String("\u{10437}")])))
+
+  glason.decode("[\"\\uD83D\\uDE39\\uD83D\\uDC8D\"]")
+  |> should.equal(Ok(value.Array([value.String("\u{1F639}\u{1F48D}")])))
+
+  glason.decode("[\"\\uDBFF\\uDFFF\"]")
+  |> should.equal(Ok(value.Array([value.String("\u{10FFFF}")])))
+
+  glason.decode("[\"\\uD834\\uDd1e\"]")
+  |> should.equal(Ok(value.Array([value.String("\u{1D11E}")])))
+}
+
+pub fn decode_surrogate_error_cases_test() {
+  glason.decode("[\"\\uD800\\u\"]")
+  |> should.be_error()
+
+  glason.decode("[\"\\uD834\\uDd\"]")
+  |> should.be_error()
+
+  glason.decode("[\"\\uDD00\"]")
+  |> should.be_error()
+}
+
 pub fn decode_invalid_leading_zero_test() {
   glason.decode("01")
   |> should.be_error()
