@@ -6,9 +6,14 @@ pub type Value {
   String(String)
   Int(Int)
   Float(Float)
+  Decimal(DecimalNumber)
   Array(List(Value))
   Object(List(#(String, Value)))
   Ordered(OrderedObject)
+}
+
+pub type DecimalNumber {
+  DecimalNumber(String)
 }
 
 pub type OrderedObject {
@@ -24,11 +29,23 @@ pub fn ordered_object_to_list(object: OrderedObject) -> List(#(String, Value)) {
   values
 }
 
+pub fn decimal(original: String) -> DecimalNumber {
+  DecimalNumber(original)
+}
+
+pub fn decimal_to_string(number: DecimalNumber) -> String {
+  let DecimalNumber(original) = number
+  original
+}
+
 pub fn ordered_object_get(object: OrderedObject, key: String) -> Option(Value) {
   ordered_object_search(ordered_object_to_list(object), key)
 }
 
-fn ordered_object_search(values: List(#(String, Value)), key: String) -> Option(Value) {
+fn ordered_object_search(
+  values: List(#(String, Value)),
+  key: String,
+) -> Option(Value) {
   case values {
     [] -> None
     [#(current_key, value), ..rest] ->

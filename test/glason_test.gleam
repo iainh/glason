@@ -1,10 +1,10 @@
-import gleeunit
-import gleeunit/should
 import glason
 import glason/decoder/tokenizer
 import glason/options
 import glason/value
 import gleam/string
+import gleeunit
+import gleeunit/should
 
 pub fn main() {
   gleeunit.main()
@@ -62,13 +62,14 @@ pub fn tokenize_unicode_escape_test() {
 
 pub fn tokenize_object_tokens_test() {
   let input = "{\"a\":1}"
-  let expected = Ok([
-    tokenizer.TokenStartObject,
-    tokenizer.TokenString("a"),
-    tokenizer.TokenColon,
-    tokenizer.TokenNumber("1"),
-    tokenizer.TokenEndObject,
-  ])
+  let expected =
+    Ok([
+      tokenizer.TokenStartObject,
+      tokenizer.TokenString("a"),
+      tokenizer.TokenColon,
+      tokenizer.TokenNumber("1"),
+      tokenizer.TokenEndObject,
+    ])
 
   tokenizer.tokenize(input)
   |> should.equal(expected)
@@ -96,15 +97,21 @@ pub fn decode_escaped_string_test() {
 
 pub fn decode_simple_array_test() {
   glason.decode("[true, null, \"hi\"]")
-  |> should.equal(Ok(value.Array([value.Bool(True), value.Null, value.String("hi")])) )
+  |> should.equal(
+    Ok(value.Array([value.Bool(True), value.Null, value.String("hi")])),
+  )
 }
 
 pub fn decode_simple_object_test() {
   glason.decode("{\"a\": 1, \"b\": \"hi\"}")
-  |> should.equal(Ok(value.Object([
-    #("a", value.Int(1)),
-    #("b", value.String("hi")),
-  ])))
+  |> should.equal(
+    Ok(
+      value.Object([
+        #("a", value.Int(1)),
+        #("b", value.String("hi")),
+      ]),
+    ),
+  )
 }
 
 pub fn decode_ordered_object_option_test() {
@@ -113,10 +120,16 @@ pub fn decode_ordered_object_option_test() {
     |> options.set_object_mode(options.ObjectsOrdered)
 
   glason.decode_with("{\"a\":1,\"b\":2}", decode_opts)
-  |> should.equal(Ok(value.Ordered(value.ordered_object([
-    #("a", value.Int(1)),
-    #("b", value.Int(2)),
-  ]))))
+  |> should.equal(
+    Ok(
+      value.Ordered(
+        value.ordered_object([
+          #("a", value.Int(1)),
+          #("b", value.Int(2)),
+        ]),
+      ),
+    ),
+  )
 }
 
 pub fn decode_float_value_test() {
@@ -152,13 +165,24 @@ pub fn decode_custom_key_transform_test() {
   |> should.equal(Ok(value.Object([#("A", value.Int(1))])))
 }
 
-pub fn decode_decimals_option_error_test() {
+pub fn decode_decimals_option_test() {
   let decode_opts =
     options.default_decode_options()
     |> options.set_float_mode(options.FloatsDecimals)
 
   glason.decode_with("1.0", decode_opts)
-  |> should.be_error()
+  |> should.equal(Ok(value.Decimal(value.decimal("1.0"))))
+}
+
+pub fn decode_decimals_large_number_test() {
+  let decode_opts =
+    options.default_decode_options()
+    |> options.set_float_mode(options.FloatsDecimals)
+
+  glason.decode_with("123456789012345678901234567890.123", decode_opts)
+  |> should.equal(
+    Ok(value.Decimal(value.decimal("123456789012345678901234567890.123"))),
+  )
 }
 
 pub fn decode_strict_map_duplicate_test() {

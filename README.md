@@ -4,14 +4,15 @@ Glason is a work-in-progress Gleam port of the [Jason](https://github.com/michal
 
 ## Status
 
-- Decoder support for strings, numbers, arrays, objects, and options is being built out incrementally.
-- Encoder, formatter, and helper APIs are not yet implemented.
+- Decoder covers literals, numbers (native floats or decimal strings), arrays, objects, and the configurable option surface.
+- Encoder supports the same `Value` variants (including ordered objects and decimals); formatter and helper APIs are still pending.
 
 ## Deviations from Jason
 
 - Atom key modes (`KeysAtoms`, `KeysExistingAtoms`) are currently **not supported**. Gleam’s backend-neutral story for atoms is still evolving, so for now all decoded keys remain strings. The option setters are present but will return an error if used.
 - String copy/reference modes, duplicate key checks, and ordered objects work for maps, but deeper BEAM-specific optimisations (like referencing original binaries) are deferred.
-- Encoder escape modes (`EscapeJavascriptSafe`, `EscapeHtmlSafe`, `EscapeUnicodeSafe`) currently behave the same as plain JSON escaping. Additional escaping behaviour will be implemented in future passes.
+- Decimal float mode produces `Value.Decimal` values that wrap the original JSON lexeme instead of an arbitrary precision math type (keeping the implementation backend-neutral).
+- Encoder escape modes (`EscapeJavascriptSafe`, `EscapeHtmlSafe`, `EscapeUnicodeSafe`) mirror Jason's behaviour for escaping problematic characters.
 
 ## Development
 
