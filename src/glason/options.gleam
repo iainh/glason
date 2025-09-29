@@ -45,6 +45,7 @@ pub type DecodeOptions {
     string_mode: StringMode,
     float_mode: FloatMode,
     object_mode: ObjectMode,
+    map_mode: MapMode,
   )
 }
 
@@ -66,6 +67,7 @@ pub fn default_decode_options() -> DecodeOptions {
     string_mode: StringsReference,
     float_mode: FloatsNative,
     object_mode: ObjectsMaps,
+    map_mode: MapsNaive,
   )
 }
 
@@ -82,23 +84,28 @@ pub fn default_options() -> Options {
 }
 
 pub fn set_key_mode(options: DecodeOptions, mode: KeyMode) -> DecodeOptions {
-  let DecodeOptions(_, string_mode, float_mode, object_mode) = options
-  DecodeOptions(mode, string_mode, float_mode, object_mode)
+  let DecodeOptions(_, string_mode, float_mode, object_mode, map_mode) = options
+  DecodeOptions(mode, string_mode, float_mode, object_mode, map_mode)
 }
 
 pub fn set_string_mode(options: DecodeOptions, mode: StringMode) -> DecodeOptions {
-  let DecodeOptions(key_mode, _, float_mode, object_mode) = options
-  DecodeOptions(key_mode, mode, float_mode, object_mode)
+  let DecodeOptions(key_mode, _, float_mode, object_mode, map_mode) = options
+  DecodeOptions(key_mode, mode, float_mode, object_mode, map_mode)
 }
 
 pub fn set_float_mode(options: DecodeOptions, mode: FloatMode) -> DecodeOptions {
-  let DecodeOptions(key_mode, string_mode, _, object_mode) = options
-  DecodeOptions(key_mode, string_mode, mode, object_mode)
+  let DecodeOptions(key_mode, string_mode, _, object_mode, map_mode) = options
+  DecodeOptions(key_mode, string_mode, mode, object_mode, map_mode)
 }
 
 pub fn set_object_mode(options: DecodeOptions, mode: ObjectMode) -> DecodeOptions {
-  let DecodeOptions(key_mode, string_mode, float_mode, _) = options
-  DecodeOptions(key_mode, string_mode, float_mode, mode)
+  let DecodeOptions(key_mode, string_mode, float_mode, _, map_mode) = options
+  DecodeOptions(key_mode, string_mode, float_mode, mode, map_mode)
+}
+
+pub fn set_decode_map_mode(options: DecodeOptions, mode: MapMode) -> DecodeOptions {
+  let DecodeOptions(key_mode, string_mode, float_mode, object_mode, _) = options
+  DecodeOptions(key_mode, string_mode, float_mode, object_mode, mode)
 }
 
 pub fn set_escape_mode(options: EncodeOptions, mode: EscapeMode) -> EncodeOptions {

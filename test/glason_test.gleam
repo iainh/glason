@@ -107,6 +107,18 @@ pub fn decode_simple_object_test() {
   ])))
 }
 
+pub fn decode_ordered_object_option_test() {
+  let decode_opts =
+    options.default_decode_options()
+    |> options.set_object_mode(options.ObjectsOrdered)
+
+  glason.decode_with("{\"a\":1,\"b\":2}", decode_opts)
+  |> should.equal(Ok(value.Ordered(value.ordered_object([
+    #("a", value.Int(1)),
+    #("b", value.Int(2)),
+  ]))))
+}
+
 pub fn decode_float_value_test() {
   glason.decode("3.14")
   |> should.equal(Ok(value.Float(3.14)))
@@ -146,5 +158,14 @@ pub fn decode_decimals_option_error_test() {
     |> options.set_float_mode(options.FloatsDecimals)
 
   glason.decode_with("1.0", decode_opts)
+  |> should.be_error()
+}
+
+pub fn decode_strict_map_duplicate_test() {
+  let decode_opts =
+    options.default_decode_options()
+    |> options.set_decode_map_mode(options.MapsStrict)
+
+  glason.decode_with("{\"a\":1,\"a\":2}", decode_opts)
   |> should.be_error()
 }

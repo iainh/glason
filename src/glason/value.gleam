@@ -8,6 +8,7 @@ pub type Value {
   Float(Float)
   Array(List(Value))
   Object(List(#(String, Value)))
+  Ordered(OrderedObject)
 }
 
 pub type OrderedObject {

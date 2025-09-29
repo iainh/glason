@@ -48,7 +48,7 @@ fn parse_value(tokens: List(Token), decode_options: options.DecodeOptions) -> Re
 }
 
 fn parse_number(text: String, rest: List(Token), decode_options: options.DecodeOptions) -> Result(#(value.Value, List(Token)), error.DecodeError) {
-  let options.DecodeOptions(_, _, float_mode, _) = decode_options
+  let options.DecodeOptions(_, _, float_mode, _, _) = decode_options
   case int.parse(text) {
     Ok(number) -> Ok(#(value.Int(number), rest))
     Error(_) ->
@@ -225,15 +225,28 @@ fn object_separator_error() -> error.DecodeError {
 }
 
 fn build_object(pairs: List(#(String, value.Value)), decode_options: options.DecodeOptions) -> Result(value.Value, error.DecodeError) {
-  let options.DecodeOptions(_, _, _, object_mode) = decode_options
+  let options.DecodeOptions(_, _, _, object_mode, map_mode) = decode_options
+  let duplicate = detect_duplicate_key(pairs)
+  case map_mode {
+    options.MapsStrict ->
+      case duplicate {
+        Some(key) -> Error(duplicate_key_error(key))
+        None -> build_object_for_mode(pairs, object_mode)
+      }
+
+    options.MapsNaive -> build_object_for_mode(pairs, object_mode)
+  }
+}
+
+fn build_object_for_mode(pairs: List(#(String, value.Value)), object_mode: options.ObjectMode) -> Result(value.Value, error.DecodeError) {
   case object_mode {
     options.ObjectsMaps -> Ok(value.Object(pairs))
-    options.ObjectsOrdered -> Ok(value.Object(pairs))
+    options.ObjectsOrdered -> Ok(value.Ordered(value.ordered_object(pairs)))
   }
 }
 
 fn transform_key(key: String, decode_options: options.DecodeOptions) -> Result(String, error.DecodeError) {
-  let options.DecodeOptions(key_mode, _, _, _) = decode_options
+  let options.DecodeOptions(key_mode, _, _, _, _) = decode_options
   case key_mode {
     options.KeysStrings -> Ok(key)
     options.KeysCustom(fun) -> Ok(fun(key))
@@ -255,6 +268,30 @@ fn float_mode_not_supported_error() -> error.DecodeError {
   error.decode_error(
     error.DecodeNotImplemented,
     ":decimals float mode not supported",
+    0,
+    None,
+  )
+}
+
+fn detect_duplicate_key(pairs: List(#(String, value.Value))) -> Option(String) {
+  detect_duplicate_key_loop(pairs, [])
+}
+
+fn detect_duplicate_key_loop(pairs: List(#(String, value.Value)), seen: List(String)) -> Option(String) {
+  case pairs {
+    [] -> None
+    [#(key, _value), ..rest] ->
+      case list.contains(seen, key) {
+        True -> Some(key)
+        False -> detect_duplicate_key_loop(rest, [key, ..seen])
+      }
+  }
+}
+
+fn duplicate_key_error(key: String) -> error.DecodeError {
+  error.decode_error(
+    error.DecodeNotImplemented,
+    "duplicate key detected: " <> key,
     0,
     None,
   )
