@@ -269,6 +269,20 @@ pub fn decode_invalid_utf8_position_test() {
   )
 }
 
+pub fn decode_iodata_whitespace_fixture_test() {
+  let content = " [] "
+
+  glason.decode_iodata(chunk_string(content, 2))
+  |> should.equal(Ok(value.Array([])))
+}
+
+pub fn decode_iodata_invalid_fixture_test() {
+  let content = "{\"a\":\"b\"}#{}"
+
+  glason.decode_iodata(chunk_string(content, 1))
+  |> should.be_error()
+}
+
 pub fn decode_invalid_leading_zero_test() {
   glason.decode("01")
   |> should.be_error()
@@ -477,4 +491,33 @@ fn decode_codepoints(json: String) -> Result(List(Int), error.DecodeError) {
       _ -> Error(error.not_implemented_decode_error())
     }
   })
+}
+
+fn chunk_string(text: String, chunk_size: Int) -> List(BitArray) {
+  let total = string.length(text)
+  chunk_loop(text, chunk_size, 0, total, [])
+}
+
+fn chunk_loop(
+  text: String,
+  chunk_size: Int,
+  index: Int,
+  total: Int,
+  acc: List(BitArray),
+) -> List(BitArray) {
+  case index >= total {
+    True -> list.reverse(acc)
+    False -> {
+      let remaining = total - index
+      let take = case remaining <= chunk_size {
+        True -> remaining
+        False -> chunk_size
+      }
+      let segment = string.slice(text, index, take)
+      chunk_loop(text, chunk_size, index + take, total, [
+        bit_array.from_string(segment),
+        ..acc
+      ])
+    }
+  }
 }
