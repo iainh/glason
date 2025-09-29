@@ -3,6 +3,7 @@ import gleam/float
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
+import gleam/bit_array
 import glason/error
 import glason/options
 import glason/value
@@ -39,7 +40,8 @@ fn parse_value(tokens: List(Token), decode_options: options.DecodeOptions) -> Re
   case tokens {
     [] -> Error(empty_input_error())
     [TokenValue(inner), ..rest] -> Ok(#(inner, rest))
-    [TokenString(text), ..rest] -> Ok(#(value.String(text), rest))
+    [TokenString(text), ..rest] ->
+      Ok(#(value.String(apply_string_mode(text, decode_options)), rest))
     [TokenNumber(text), ..rest] -> parse_number(text, rest, decode_options)
     [TokenStartArray, ..rest] -> parse_array(rest, [], decode_options)
     [TokenStartObject, ..rest] -> parse_object(rest, [], decode_options)
@@ -103,12 +105,12 @@ fn parse_object(
         Error(err) -> Error(err)
       }
     [TokenString(key), ..rest] ->
-      case transform_key(key, decode_options) {
+      case transform_key(apply_string_mode(key, decode_options), decode_options) {
         Ok(normalised) -> parse_object_colon(rest, normalised, acc, decode_options)
         Error(err) -> Error(err)
       }
     [TokenValue(value.String(key)), ..rest] ->
-      case transform_key(key, decode_options) {
+      case transform_key(apply_string_mode(key, decode_options), decode_options) {
         Ok(normalised) -> parse_object_colon(rest, normalised, acc, decode_options)
         Error(err) -> Error(err)
       }
@@ -252,6 +254,18 @@ fn transform_key(key: String, decode_options: options.DecodeOptions) -> Result(S
     options.KeysCustom(fun) -> Ok(fun(key))
     options.KeysAtoms -> Error(key_mode_not_supported_error("atoms"))
     options.KeysExistingAtoms -> Error(key_mode_not_supported_error("existing atoms"))
+  }
+}
+
+fn apply_string_mode(text: String, decode_options: options.DecodeOptions) -> String {
+  let options.DecodeOptions(_, string_mode, _, _, _) = decode_options
+  case string_mode {
+    options.StringsReference -> text
+    options.StringsCopy ->
+      case bit_array.to_string(bit_array.from_string(text)) {
+        Ok(copy) -> copy
+        Error(_) -> text
+      }
   }
 }
 
