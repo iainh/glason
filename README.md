@@ -11,6 +11,7 @@ Glason is a work-in-progress Gleam port of the [Jason](https://github.com/michal
 
 - Atom key modes (`KeysAtoms`, `KeysExistingAtoms`) are currently **not supported**. Gleam’s backend-neutral story for atoms is still evolving, so for now all decoded keys remain strings. The option setters are present but will return an error if used.
 - String copy/reference modes, duplicate key checks, and ordered objects work for maps, but deeper BEAM-specific optimisations (like referencing original binaries) are deferred.
+- Encoder escape modes (`EscapeJavascriptSafe`, `EscapeHtmlSafe`, `EscapeUnicodeSafe`) currently behave the same as plain JSON escaping. Additional escaping behaviour will be implemented in future passes.
 
 ## Development
 
