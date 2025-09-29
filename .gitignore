@@ -1,0 +1,13 @@
+/build/
+/upstream_jason/
+
+*.beam
+*.ez
+*.o
+*.so
+*.dylib
+*.dll
+
+# Gleam build artifacts
+/manifest.toml
+*.cache
