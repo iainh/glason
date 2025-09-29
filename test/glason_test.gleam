@@ -2,7 +2,9 @@ import gleeunit
 import gleeunit/should
 import glason
 import glason/decoder/tokenizer
+import glason/options
 import glason/value
+import gleam/string
 
 pub fn main() {
   gleeunit.main()
@@ -117,5 +119,32 @@ pub fn decode_exponent_value_test() {
 
 pub fn decode_invalid_leading_zero_test() {
   glason.decode("01")
+  |> should.be_error()
+}
+
+pub fn decode_atoms_option_error_test() {
+  let decode_opts =
+    options.default_decode_options()
+    |> options.set_key_mode(options.KeysAtoms)
+
+  glason.decode_with("{\"a\":1}", decode_opts)
+  |> should.be_error()
+}
+
+pub fn decode_custom_key_transform_test() {
+  let decode_opts =
+    options.default_decode_options()
+    |> options.set_key_mode(options.KeysCustom(string.uppercase))
+
+  glason.decode_with("{\"a\":1}", decode_opts)
+  |> should.equal(Ok(value.Object([#("A", value.Int(1))])))
+}
+
+pub fn decode_decimals_option_error_test() {
+  let decode_opts =
+    options.default_decode_options()
+    |> options.set_float_mode(options.FloatsDecimals)
+
+  glason.decode_with("1.0", decode_opts)
   |> should.be_error()
 }

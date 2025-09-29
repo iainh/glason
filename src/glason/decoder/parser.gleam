@@ -20,8 +20,8 @@ import glason/decoder/tokenizer.{
   TokenColon,
 }
 
-pub fn parse(tokens: List(Token), _decode_options: options.DecodeOptions) -> Result(value.Value, error.DecodeError) {
-  case parse_value(tokens) {
+pub fn parse(tokens: List(Token), decode_options: options.DecodeOptions) -> Result(value.Value, error.DecodeError) {
+  case parse_value(tokens, decode_options) {
     Ok(#(result, [])) -> Ok(result)
     Ok(#(_result, _rest)) -> Error(extra_tokens_error())
     Error(err) -> Error(err)
@@ -29,32 +29,37 @@ pub fn parse(tokens: List(Token), _decode_options: options.DecodeOptions) -> Res
 }
 
 pub fn parse_binary(input: String, decode_options: options.DecodeOptions) -> Result(value.Value, error.DecodeError) {
-  let _ = decode_options
   case tokenize(input) {
     Ok(tokens) -> parse(tokens, decode_options)
     Error(e) -> Error(e)
   }
 }
 
-fn parse_value(tokens: List(Token)) -> Result(#(value.Value, List(Token)), error.DecodeError) {
+fn parse_value(tokens: List(Token), decode_options: options.DecodeOptions) -> Result(#(value.Value, List(Token)), error.DecodeError) {
   case tokens {
     [] -> Error(empty_input_error())
     [TokenValue(inner), ..rest] -> Ok(#(inner, rest))
     [TokenString(text), ..rest] -> Ok(#(value.String(text), rest))
-    [TokenNumber(text), ..rest] -> parse_number(text, rest)
-    [TokenStartArray, ..rest] -> parse_array(rest, [])
-    [TokenStartObject, ..rest] -> parse_object(rest, [])
+    [TokenNumber(text), ..rest] -> parse_number(text, rest, decode_options)
+    [TokenStartArray, ..rest] -> parse_array(rest, [], decode_options)
+    [TokenStartObject, ..rest] -> parse_object(rest, [], decode_options)
     [token, .._] -> Error(unexpected_token_error(token))
   }
 }
 
-fn parse_number(text: String, rest: List(Token)) -> Result(#(value.Value, List(Token)), error.DecodeError) {
+fn parse_number(text: String, rest: List(Token), decode_options: options.DecodeOptions) -> Result(#(value.Value, List(Token)), error.DecodeError) {
+  let options.DecodeOptions(_, _, float_mode, _) = decode_options
   case int.parse(text) {
     Ok(number) -> Ok(#(value.Int(number), rest))
     Error(_) ->
-      case parse_float_value(text) {
-        Ok(f) -> Ok(#(value.Float(f), rest))
-        Error(_) -> Error(number_not_supported_error())
+      case float_mode {
+        options.FloatsNative ->
+          case parse_float_value(text) {
+            Ok(f) -> Ok(#(value.Float(f), rest))
+            Error(_) -> Error(number_not_supported_error())
+          }
+
+        options.FloatsDecimals -> Error(float_mode_not_supported_error())
       }
   }
 }
@@ -85,15 +90,28 @@ fn unexpected_token_error(_token: Token) -> error.DecodeError {
   )
 }
 
-fn parse_object(tokens: List(Token), acc: List(#(String, value.Value))) -> Result(#(value.Value, List(Token)), error.DecodeError) {
+fn parse_object(
+  tokens: List(Token),
+  acc: List(#(String, value.Value)),
+  decode_options: options.DecodeOptions,
+) -> Result(#(value.Value, List(Token)), error.DecodeError) {
   case tokens {
     [] -> Error(empty_input_error())
     [TokenEndObject, ..rest] ->
-      Ok(#(value.Object(list.reverse(acc)), rest))
+      case build_object(list.reverse(acc), decode_options) {
+        Ok(map_value) -> Ok(#(map_value, rest))
+        Error(err) -> Error(err)
+      }
     [TokenString(key), ..rest] ->
-      parse_object_colon(rest, key, acc)
+      case transform_key(key, decode_options) {
+        Ok(normalised) -> parse_object_colon(rest, normalised, acc, decode_options)
+        Error(err) -> Error(err)
+      }
     [TokenValue(value.String(key)), ..rest] ->
-      parse_object_colon(rest, key, acc)
+      case transform_key(key, decode_options) {
+        Ok(normalised) -> parse_object_colon(rest, normalised, acc, decode_options)
+        Error(err) -> Error(err)
+      }
     _ -> Error(object_key_error())
   }
 }
@@ -102,12 +120,13 @@ fn parse_object_colon(
   tokens: List(Token),
   key: String,
   acc: List(#(String, value.Value)),
+  decode_options: options.DecodeOptions,
 ) -> Result(#(value.Value, List(Token)), error.DecodeError) {
   case tokens {
     [TokenColon, ..rest] ->
-      case parse_value(rest) {
+      case parse_value(rest, decode_options) {
         Ok(#(val, after_value)) ->
-          parse_object_after_value(after_value, key, val, acc)
+          parse_object_after_value(after_value, key, val, acc, decode_options)
         Error(err) -> Error(err)
       }
     _ -> Error(object_colon_error())
@@ -119,18 +138,22 @@ fn parse_object_after_value(
   key: String,
   val: value.Value,
   acc: List(#(String, value.Value)),
+  decode_options: options.DecodeOptions,
 ) -> Result(#(value.Value, List(Token)), error.DecodeError) {
   let updated = [#(key, val), ..acc]
   case tokens {
-    [TokenComma, ..rest] -> parse_object(rest, updated)
+    [TokenComma, ..rest] -> parse_object(rest, updated, decode_options)
     [TokenEndObject, ..rest] ->
-      Ok(#(value.Object(list.reverse(updated)), rest))
+      case build_object(list.reverse(updated), decode_options) {
+        Ok(map_value) -> Ok(#(map_value, rest))
+        Error(err) -> Error(err)
+      }
     [] -> Error(empty_input_error())
     _ -> Error(object_separator_error())
   }
 }
 
-fn parse_array(tokens: List(Token), acc: List(value.Value)) -> Result(#(value.Value, List(Token)), error.DecodeError) {
+fn parse_array(tokens: List(Token), acc: List(value.Value), decode_options: options.DecodeOptions) -> Result(#(value.Value, List(Token)), error.DecodeError) {
   case tokens {
     [] -> Error(empty_input_error())
 
@@ -138,22 +161,22 @@ fn parse_array(tokens: List(Token), acc: List(value.Value)) -> Result(#(value.Va
       Ok(#(value.Array(list.reverse(acc)), rest))
 
     _ ->
-      case parse_value(tokens) {
+      case parse_value(tokens, decode_options) {
         Ok(#(element, rest)) ->
-          parse_array_after_element(rest, [element, ..acc])
+          parse_array_after_element(rest, [element, ..acc], decode_options)
         Error(err) -> Error(err)
       }
   }
 }
 
-fn parse_array_after_element(tokens: List(Token), acc: List(value.Value)) -> Result(#(value.Value, List(Token)), error.DecodeError) {
+fn parse_array_after_element(tokens: List(Token), acc: List(value.Value), decode_options: options.DecodeOptions) -> Result(#(value.Value, List(Token)), error.DecodeError) {
   case tokens {
     [] -> Error(empty_input_error())
 
     [TokenComma, ..rest] ->
-      case parse_value(rest) {
+      case parse_value(rest, decode_options) {
         Ok(#(element, remainder)) ->
-          parse_array_after_element(remainder, [element, ..acc])
+          parse_array_after_element(remainder, [element, ..acc], decode_options)
         Error(err) -> Error(err)
       }
 
@@ -196,6 +219,42 @@ fn object_separator_error() -> error.DecodeError {
   error.decode_error(
     error.DecodeNotImplemented,
     "expected comma or closing brace in object",
+    0,
+    None,
+  )
+}
+
+fn build_object(pairs: List(#(String, value.Value)), decode_options: options.DecodeOptions) -> Result(value.Value, error.DecodeError) {
+  let options.DecodeOptions(_, _, _, object_mode) = decode_options
+  case object_mode {
+    options.ObjectsMaps -> Ok(value.Object(pairs))
+    options.ObjectsOrdered -> Ok(value.Object(pairs))
+  }
+}
+
+fn transform_key(key: String, decode_options: options.DecodeOptions) -> Result(String, error.DecodeError) {
+  let options.DecodeOptions(key_mode, _, _, _) = decode_options
+  case key_mode {
+    options.KeysStrings -> Ok(key)
+    options.KeysCustom(fun) -> Ok(fun(key))
+    options.KeysAtoms -> Error(key_mode_not_supported_error("atoms"))
+    options.KeysExistingAtoms -> Error(key_mode_not_supported_error("existing atoms"))
+  }
+}
+
+fn key_mode_not_supported_error(tag: String) -> error.DecodeError {
+  error.decode_error(
+    error.DecodeNotImplemented,
+    "key mode not supported: " <> tag,
+    0,
+    None,
+  )
+}
+
+fn float_mode_not_supported_error() -> error.DecodeError {
+  error.decode_error(
+    error.DecodeNotImplemented,
+    ":decimals float mode not supported",
     0,
     None,
   )
