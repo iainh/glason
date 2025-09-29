@@ -217,3 +217,30 @@ pub fn encode_object_value_test() {
   glason.encode(value.Object([#("a", value.Int(1)), #("b", value.Bool(True))]))
   |> should.equal(Ok("{\"a\":1,\"b\":true}"))
 }
+
+pub fn encode_javascript_safe_escape_test() {
+  let encode_opts =
+    options.default_encode_options()
+    |> options.set_escape_mode(options.EscapeJavascriptSafe)
+
+  glason.encode_with(value.String("line\u{2028}sep\u{2029}"), encode_opts)
+  |> should.equal(Ok("\"line\\u2028sep\\u2029\""))
+}
+
+pub fn encode_html_safe_escape_test() {
+  let encode_opts =
+    options.default_encode_options()
+    |> options.set_escape_mode(options.EscapeHtmlSafe)
+
+  glason.encode_with(value.String("</script>\u{2028}"), encode_opts)
+  |> should.equal(Ok("\"\\u003C\\/script>\\u2028\""))
+}
+
+pub fn encode_unicode_safe_escape_test() {
+  let encode_opts =
+    options.default_encode_options()
+    |> options.set_escape_mode(options.EscapeUnicodeSafe)
+
+  glason.encode_with(value.String("€"), encode_opts)
+  |> should.equal(Ok("\"\\u20AC\""))
+}

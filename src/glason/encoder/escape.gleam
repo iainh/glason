@@ -1,8 +1,8 @@
+import glason/options
 import gleam/int
 import gleam/list
 import gleam/string
 import gleam/string_builder
-import glason/options
 
 pub fn escape_string(input: String, mode: options.EscapeMode) -> String {
   case mode {
@@ -30,10 +30,16 @@ fn escape_javascript(input: String) -> String {
 fn escape_html(input: String) -> String {
   escape_with(input, fn(codepoint) {
     case codepoint {
-      60 -> Special("\\u003C") // <
-      62 -> Special("\\u003E") // >
-      38 -> Special("\\u0026") // &
-      39 -> Special("\\u0027") // '
+      60 -> Special("\\u003C")
+      // <
+      38 -> Special("\\u0026")
+      // &
+      39 -> Special("\\u0027")
+      // '
+      47 -> Special("\\/")
+      // /
+      0x2028 -> Special("\\u2028")
+      0x2029 -> Special("\\u2029")
       _ -> escape_json_codepoint(codepoint)
     }
   })
