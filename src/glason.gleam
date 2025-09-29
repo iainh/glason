@@ -1,5 +1,5 @@
-import gleam/bit_builder
-import gleam/bit_string
+import gleam/bytes_builder as bb
+import gleam/bit_array
 import glason/error
 import glason/options
 import glason/value.{type Value}
@@ -25,12 +25,13 @@ pub fn encode_with(value: Value, encode_options: options.EncodeOptions) -> Resul
   }
 }
 
-pub fn encode_to_builder(value: Value, encode_options: options.EncodeOptions) -> Result(bit_builder.BitBuilder, error.EncodeError) {
+pub fn encode_to_builder(value: Value, encode_options: options.EncodeOptions) -> Result(bb.BytesBuilder, error.EncodeError) {
   builder.build(value, encode_options)
 }
 
-fn builder_to_string(builder: bit_builder.BitBuilder) -> Result(String, error.EncodeError) {
-  case bit_string.to_string(bit_builder.to_bit_string(builder)) {
+fn builder_to_string(builder: bb.BytesBuilder) -> Result(String, error.EncodeError) {
+  let bits = bb.to_bit_array(builder)
+  case bit_array.to_string(bits) {
     Ok(string) -> Ok(string)
     Error(_) ->
       Error(

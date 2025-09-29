@@ -178,3 +178,18 @@ pub fn decode_string_copy_mode_test() {
   glason.decode_with("\"copy\"", decode_opts)
   |> should.equal(Ok(value.String("copy")))
 }
+
+pub fn encode_string_value_test() {
+  glason.encode(value.String("hi\""))
+  |> should.equal(Ok("\"hi\\\"\""))
+}
+
+pub fn encode_array_value_test() {
+  glason.encode(value.Array([value.Int(1), value.Bool(False)]))
+  |> should.equal(Ok("[1,false]"))
+}
+
+pub fn encode_object_value_test() {
+  glason.encode(value.Object([#("a", value.Int(1)), #("b", value.Bool(True))]))
+  |> should.equal(Ok("{\"a\":1,\"b\":true}"))
+}

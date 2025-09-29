@@ -248,10 +248,11 @@ fn build_object_for_mode(pairs: List(#(String, value.Value)), object_mode: optio
 }
 
 fn transform_key(key: String, decode_options: options.DecodeOptions) -> Result(String, error.DecodeError) {
+  let prepared = apply_string_mode(key, decode_options)
   let options.DecodeOptions(key_mode, _, _, _, _) = decode_options
   case key_mode {
-    options.KeysStrings -> Ok(key)
-    options.KeysCustom(fun) -> Ok(fun(key))
+    options.KeysStrings -> Ok(prepared)
+    options.KeysCustom(fun) -> Ok(fun(prepared))
     options.KeysAtoms -> Error(key_mode_not_supported_error("atoms"))
     options.KeysExistingAtoms -> Error(key_mode_not_supported_error("existing atoms"))
   }
