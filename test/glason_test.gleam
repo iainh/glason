@@ -214,6 +214,12 @@ pub fn decode_unicode_noncharacter_codepoints_test() {
   assert_codepoints("[\"\\uD83F\\uDFFE\"]", [0x1FFFE])
 }
 
+pub fn decode_additional_unicode_escape_fixtures_test() {
+  assert_codepoints("[\"\\u0000\"]", [0x0])
+  assert_codepoints("[\"\\u005C\"]", [0x5C])
+  assert_codepoints("[\"\\uFFFF\"]", [0xFFFF])
+}
+
 pub fn decode_invalid_leading_zero_test() {
   glason.decode("01")
   |> should.be_error()
