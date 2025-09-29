@@ -5,6 +5,7 @@ import glason/error
 import glason/fragment
 import glason/options
 import glason/value
+import gleam/bit_array
 import gleam/list
 import gleam/option
 import gleam/result
@@ -218,6 +219,28 @@ pub fn decode_additional_unicode_escape_fixtures_test() {
   assert_codepoints("[\"\\u0000\"]", [0x0])
   assert_codepoints("[\"\\u005C\"]", [0x5C])
   assert_codepoints("[\"\\uFFFF\"]", [0xFFFF])
+}
+
+pub fn decode_binary_with_bom_test() {
+  let bom = bit_array.from_string("\u{FEFF}")
+  let payload = bit_array.from_string("{\"a\":1}")
+  let input = bit_array.concat([bom, payload])
+
+  glason.decode_binary(input)
+  |> should.equal(Ok(value.Object([#("a", value.Int(1))])))
+}
+
+pub fn decode_iodata_segments_test() {
+  let segments = [
+    bit_array.from_string("{"),
+    bit_array.from_string("\"a\""),
+    bit_array.from_string(":"),
+    bit_array.from_string("true"),
+    bit_array.from_string("}"),
+  ]
+
+  glason.decode_iodata(segments)
+  |> should.equal(Ok(value.Object([#("a", value.Bool(True))])))
 }
 
 pub fn decode_invalid_leading_zero_test() {
