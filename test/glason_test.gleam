@@ -105,6 +105,18 @@ pub fn decode_simple_array_test() {
   )
 }
 
+pub fn decode_array_of_objects_test() {
+  glason.decode("[{\"foo\":\"bar\"},{\"baz\":\"quux\"}]")
+  |> should.equal(
+    Ok(
+      value.Array([
+        value.Object([#("foo", value.String("bar"))]),
+        value.Object([#("baz", value.String("quux"))]),
+      ]),
+    ),
+  )
+}
+
 pub fn decode_simple_object_test() {
   glason.decode("{\"a\": 1, \"b\": \"hi\"}")
   |> should.equal(
@@ -112,6 +124,17 @@ pub fn decode_simple_object_test() {
       value.Object([
         #("a", value.Int(1)),
         #("b", value.String("hi")),
+      ]),
+    ),
+  )
+}
+
+pub fn decode_nested_object_test() {
+  glason.decode("{\"foo\": {\"bar\": \"baz\"}}")
+  |> should.equal(
+    Ok(
+      value.Object([
+        #("foo", value.Object([#("bar", value.String("baz"))])),
       ]),
     ),
   )
@@ -145,8 +168,24 @@ pub fn decode_exponent_value_test() {
   |> should.equal(Ok(value.Float(100.0)))
 }
 
+pub fn decode_unicode_escape_sequences_test() {
+  glason.decode("\"\\u2603\"")
+  |> should.equal(Ok(value.String("☃")))
+
+  glason.decode("\"\\uD834\\uDD1E\"")
+  |> should.equal(Ok(value.String("𝄞")))
+
+  glason.decode("\"\\uDD1E\"")
+  |> should.be_error()
+}
+
 pub fn decode_invalid_leading_zero_test() {
   glason.decode("01")
+  |> should.be_error()
+}
+
+pub fn decode_trailing_comma_error_test() {
+  glason.decode("[1,]")
   |> should.be_error()
 }
 
@@ -185,6 +224,23 @@ pub fn decode_decimals_large_number_test() {
   glason.decode_with("123456789012345678901234567890.123", decode_opts)
   |> should.equal(
     Ok(value.Decimal(value.decimal("123456789012345678901234567890.123"))),
+  )
+}
+
+pub fn decode_whitespace_tolerance_test() {
+  glason.decode("  {  \"a\"  :  [ 1 , 2 ] }  ")
+  |> should.equal(
+    Ok(
+      value.Object([
+        #(
+          "a",
+          value.Array([
+            value.Int(1),
+            value.Int(2),
+          ]),
+        ),
+      ]),
+    ),
   )
 }
 
@@ -246,6 +302,15 @@ pub fn encode_unicode_safe_escape_test() {
 
   glason.encode_with(value.String("€"), encode_opts)
   |> should.equal(Ok("\"\\u20AC\""))
+}
+
+pub fn encode_unicode_safe_surrogate_test() {
+  let encode_opts =
+    options.default_encode_options()
+    |> options.set_escape_mode(options.EscapeUnicodeSafe)
+
+  glason.encode_with(value.String("𝄞"), encode_opts)
+  |> should.equal(Ok("\"\\uD834\\uDD1E\""))
 }
 
 pub fn encode_fragment_array_test() {
