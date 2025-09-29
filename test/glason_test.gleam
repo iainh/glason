@@ -44,6 +44,13 @@ pub fn tokenize_escape_sequences_test() {
   |> should.equal(expected)
 }
 
+pub fn tokenize_float_literal_test() {
+  let input = "12.34e-2"
+  let expected = Ok([tokenizer.TokenNumber("12.34e-2")])
+  tokenizer.tokenize(input)
+  |> should.equal(expected)
+}
+
 pub fn tokenize_unicode_escape_test() {
   let input = "\"\\u0041\""
   let expected = Ok([tokenizer.TokenString("A")])
@@ -96,4 +103,19 @@ pub fn decode_simple_object_test() {
     #("a", value.Int(1)),
     #("b", value.String("hi")),
   ])))
+}
+
+pub fn decode_float_value_test() {
+  glason.decode("3.14")
+  |> should.equal(Ok(value.Float(3.14)))
+}
+
+pub fn decode_exponent_value_test() {
+  glason.decode("1e2")
+  |> should.equal(Ok(value.Float(100.0)))
+}
+
+pub fn decode_invalid_leading_zero_test() {
+  glason.decode("01")
+  |> should.be_error()
 }

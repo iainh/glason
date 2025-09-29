@@ -61,7 +61,7 @@ fn tokenize_codepoints(codepoints: List(Int), position: Int, acc: List(Token)) -
       }
 
     [45, ..rest] ->
-      case read_number(rest, position + 1, [45], False) {
+      case read_number(rest, position + 1, [45], False, NumberInitial) {
         Ok(#(lexeme, remainder, next_position)) ->
           tokenize_codepoints(remainder, next_position, [TokenNumber(lexeme), ..acc])
 
@@ -70,16 +70,17 @@ fn tokenize_codepoints(codepoints: List(Int), position: Int, acc: List(Token)) -
 
     [codepoint, ..rest] ->
       case is_digit(codepoint) {
-        True ->
-          case read_number(rest, position + 1, [codepoint], True) {
+        True -> {
+          let initial_state = digit_initial_state(codepoint)
+          case read_number(rest, position + 1, [codepoint], True, initial_state) {
             Ok(#(lexeme, remainder, next_position)) ->
               tokenize_codepoints(remainder, next_position, [TokenNumber(lexeme), ..acc])
 
             Error(err) -> Error(err)
           }
+        }
 
-        False ->
-          Error(unexpected_codepoint_error(codepoint, position))
+        False -> Error(unexpected_codepoint_error(codepoint, position))
       }
   }
 }
@@ -116,14 +117,31 @@ fn read_number(
   current_position: Int,
   acc: List(Int),
   has_digit: Bool,
+  state: NumberState,
 ) -> Result(#(String, List(Int), Int), error.DecodeError) {
   case codepoints {
-    [] -> finalize_number(acc, has_digit, [], current_position)
+    [] -> finalize_number(acc, has_digit, [], current_position, state)
 
     [codepoint, ..rest] ->
-      case is_digit(codepoint) {
-        True -> read_number(rest, current_position + 1, [codepoint, ..acc], True)
-        False -> finalize_number(acc, has_digit, [codepoint, ..rest], current_position)
+      case classify_number_char(codepoint) {
+        Digit(digit) -> {
+          let next_state = update_number_state_for_digit(state, digit)
+          read_number(rest, current_position + 1, [digit, ..acc], True, next_state)
+        }
+
+        Dot -> {
+          let next_state = update_number_state_for_dot(state)
+          case next_state {
+            NumberInvalid -> finalize_number(acc, has_digit, [codepoint, ..rest], current_position, NumberInvalid)
+            _ -> read_number(rest, current_position + 1, [codepoint, ..acc], has_digit, next_state)
+          }
+        }
+
+        Exponent(exp) -> handle_exponent(rest, current_position, acc, has_digit, state, exp)
+
+        Sign(sign) -> handle_exponent_sign(rest, current_position, acc, has_digit, state, sign)
+
+        Other(other) -> finalize_number(acc, has_digit, [other, ..rest], current_position, state)
       }
   }
 }
@@ -133,16 +151,23 @@ fn finalize_number(
   has_digit: Bool,
   remainder: List(Int),
   next_position: Int,
+  state: NumberState,
 ) -> Result(#(String, List(Int), Int), error.DecodeError) {
   case has_digit {
     True ->
-      case reversed_ints_to_string(acc, next_position) {
-        Ok(value) -> Ok(#(value, remainder, next_position))
-        Error(err) -> Error(err)
+      case state {
+        NumberFractionStart -> Error(number_format_error(next_position))
+        NumberExponentStart -> Error(number_format_error(next_position))
+        NumberExponentSign -> Error(number_format_error(next_position))
+        NumberInvalid -> Error(number_format_error(next_position))
+        _ ->
+          case reversed_ints_to_string(acc, next_position) {
+            Ok(value) -> Ok(#(value, remainder, next_position))
+            Error(err) -> Error(err)
+          }
       }
 
-    False ->
-      Error(number_format_error(next_position))
+    False -> Error(number_format_error(next_position))
   }
 }
 
@@ -161,6 +186,93 @@ fn unexpected_end_error(position: Int) -> error.DecodeError {
 
 fn number_format_error(position: Int) -> error.DecodeError {
   error.decode_error(error.InvalidNumber, "invalid number literal", position, None)
+}
+
+fn digit_initial_state(codepoint: Int) -> NumberState {
+  case codepoint {
+    48 -> NumberLeadingZero
+    _ -> NumberInteger
+  }
+}
+
+fn update_number_state_for_digit(state: NumberState, digit: Int) -> NumberState {
+  case state {
+    NumberInitial -> digit_initial_state(digit)
+    NumberLeadingZero -> NumberInvalid
+    NumberInteger -> NumberInteger
+    NumberFractionStart -> NumberFraction
+    NumberFraction -> NumberFraction
+    NumberExponentStart -> NumberExponent
+    NumberExponentSign -> NumberExponent
+    NumberExponent -> NumberExponent
+    NumberInvalid -> NumberInvalid
+  }
+}
+
+fn update_number_state_for_dot(state: NumberState) -> NumberState {
+  case state {
+    NumberLeadingZero -> NumberFractionStart
+    NumberInteger -> NumberFractionStart
+    _ -> NumberInvalid
+  }
+}
+
+fn handle_exponent(
+  codepoints: List(Int),
+  position: Int,
+  acc: List(Int),
+  has_digit: Bool,
+  state: NumberState,
+  codepoint: Int,
+) -> Result(#(String, List(Int), Int), error.DecodeError) {
+  case state {
+    NumberInteger ->
+      read_number(codepoints, position + 1, [codepoint, ..acc], has_digit, NumberExponentStart)
+
+    NumberLeadingZero ->
+      read_number(codepoints, position + 1, [codepoint, ..acc], has_digit, NumberExponentStart)
+
+    NumberFraction ->
+      read_number(codepoints, position + 1, [codepoint, ..acc], has_digit, NumberExponentStart)
+
+    _ -> finalize_number(acc, has_digit, [codepoint, ..codepoints], position, NumberInvalid)
+  }
+}
+
+fn handle_exponent_sign(
+  codepoints: List(Int),
+  position: Int,
+  acc: List(Int),
+  has_digit: Bool,
+  state: NumberState,
+  sign: Int,
+) -> Result(#(String, List(Int), Int), error.DecodeError) {
+  case state {
+    NumberExponentStart ->
+      read_number(codepoints, position + 1, [sign, ..acc], has_digit, NumberExponentSign)
+
+    _ -> finalize_number(acc, has_digit, [sign, ..codepoints], position, NumberInvalid)
+  }
+}
+
+type NumberState {
+  NumberInitial
+  NumberLeadingZero
+  NumberInteger
+  NumberFractionStart
+  NumberFraction
+  NumberExponentStart
+  NumberExponentSign
+  NumberExponent
+  NumberInvalid
+}
+
+type NumberChar {
+  Digit(Int)
+  Dot
+  Exponent(Int)
+  Sign(Int)
+  Other(Int)
 }
 
 fn read_escape(
@@ -262,4 +374,22 @@ fn reversed_ints_to_string(reversed: List(Int), position: Int) -> Result(String,
         )
     }
   })
+}
+
+fn classify_number_char(codepoint: Int) -> NumberChar {
+  case codepoint {
+    46 -> Dot
+    101 -> Exponent(codepoint)
+    69 -> Exponent(codepoint)
+    43 -> Sign(codepoint)
+    45 -> Sign(codepoint)
+    other -> classify_digit_or_other(other)
+  }
+}
+
+fn classify_digit_or_other(codepoint: Int) -> NumberChar {
+  case is_digit(codepoint) {
+    True -> Digit(codepoint)
+    False -> Other(codepoint)
+  }
 }

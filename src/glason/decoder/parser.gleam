@@ -1,6 +1,8 @@
 import gleam/int
+import gleam/float
 import gleam/list
-import gleam/option.{None}
+import gleam/option.{type Option, None, Some}
+import gleam/string
 import glason/error
 import glason/options
 import glason/value
@@ -49,7 +51,11 @@ fn parse_value(tokens: List(Token)) -> Result(#(value.Value, List(Token)), error
 fn parse_number(text: String, rest: List(Token)) -> Result(#(value.Value, List(Token)), error.DecodeError) {
   case int.parse(text) {
     Ok(number) -> Ok(#(value.Int(number), rest))
-    Error(_) -> Error(number_not_supported_error())
+    Error(_) ->
+      case parse_float_value(text) {
+        Ok(f) -> Ok(#(value.Float(f), rest))
+        Error(_) -> Error(number_not_supported_error())
+      }
   }
 }
 
@@ -193,4 +199,43 @@ fn object_separator_error() -> error.DecodeError {
     0,
     None,
   )
+}
+
+fn parse_float_value(text: String) -> Result(Float, Nil) {
+  case float.parse(text) {
+    Ok(f) -> Ok(f)
+    Error(_) ->
+      case ensure_decimal_in_exponent(text) {
+        Some(adjusted) -> float.parse(adjusted)
+        None -> Error(Nil)
+      }
+  }
+}
+
+fn ensure_decimal_in_exponent(text: String) -> Option(String) {
+  case split_exponent(text, "e") {
+    Some(#(before, after)) -> Some(build_exponent_string(before, after))
+    None ->
+      case split_exponent(text, "E") {
+        Some(#(before, after)) -> Some(build_exponent_string(before, after))
+        None -> None
+      }
+  }
+}
+
+fn split_exponent(text: String, marker: String) -> Option(#(String, String)) {
+  case string.split_once(text, marker) {
+    Ok(#(before, after)) -> Some(#(before, after))
+    Error(_) -> None
+  }
+}
+
+fn build_exponent_string(before: String, after: String) -> String {
+  let base =
+    case string.contains(before, ".") {
+      True -> before
+      False -> string.concat([before, ".0"])
+    }
+
+  string.concat([base, "e", after])
 }
