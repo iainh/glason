@@ -208,6 +208,8 @@ pub fn decode_surrogate_error_cases_test() {
 }
 
 pub fn decode_unicode_noncharacter_codepoints_test() {
+  assert_codepoints("[\"\\uFDD0\"]", [0xFDD0])
+  assert_codepoints("[\"\\uFFFE\"]", [0xFFFE])
   assert_codepoints("[\"\\uDBFF\\uDFFE\"]", [0x10FFFE])
   assert_codepoints("[\"\\uD83F\\uDFFE\"]", [0x1FFFE])
 }

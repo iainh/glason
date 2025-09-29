@@ -1,8 +1,11 @@
 import glason/error
 import glason/value.{type Value, Bool, Null}
+import gleam/bit_array
+import gleam/bytes_builder as bb
 import gleam/int
 import gleam/list
 import gleam/option.{None}
+import gleam/result
 import gleam/string
 
 pub type Token {
@@ -534,22 +537,82 @@ fn invalid_surrogate_pair_error(position: Int) -> error.DecodeError {
   )
 }
 
+fn invalid_unicode_codepoint_error(position: Int) -> error.DecodeError {
+  error.decode_error(
+    error.DecodeNotImplemented,
+    "tokenizer encountered invalid unicode codepoint",
+    position,
+    None,
+  )
+}
+
+fn append_codepoint(
+  builder: bb.BytesBuilder,
+  codepoint: Int,
+  position: Int,
+) -> Result(bb.BytesBuilder, error.DecodeError) {
+  case codepoint {
+    cp if cp < 0 -> Error(invalid_unicode_codepoint_error(position))
+    cp if cp > 0x10FFFF -> Error(invalid_unicode_codepoint_error(position))
+    _ -> {
+      let bytes = utf8_from_codepoint(codepoint)
+      Ok(bb.append(builder, bytes))
+    }
+  }
+}
+
+fn utf8_from_codepoint(codepoint: Int) -> BitArray {
+  case codepoint {
+    cp if cp <= 0x7F -> <<cp:8>>
+
+    cp if cp <= 0x7FF -> {
+      let first = int.bitwise_or(0xC0, int.bitwise_shift_right(cp, 6))
+      let second = int.bitwise_or(0x80, int.bitwise_and(cp, 0x3F))
+      <<first:8, second:8>>
+    }
+
+    cp if cp <= 0xFFFF -> {
+      let first = int.bitwise_or(0xE0, int.bitwise_shift_right(cp, 12))
+      let second =
+        int.bitwise_or(
+          0x80,
+          int.bitwise_and(int.bitwise_shift_right(cp, 6), 0x3F),
+        )
+      let third = int.bitwise_or(0x80, int.bitwise_and(cp, 0x3F))
+      <<first:8, second:8, third:8>>
+    }
+
+    cp -> {
+      let first = int.bitwise_or(0xF0, int.bitwise_shift_right(cp, 18))
+      let second =
+        int.bitwise_or(
+          0x80,
+          int.bitwise_and(int.bitwise_shift_right(cp, 12), 0x3F),
+        )
+      let third =
+        int.bitwise_or(
+          0x80,
+          int.bitwise_and(int.bitwise_shift_right(cp, 6), 0x3F),
+        )
+      let fourth = int.bitwise_or(0x80, int.bitwise_and(cp, 0x3F))
+      <<first:8, second:8, third:8, fourth:8>>
+    }
+  }
+}
+
 fn reversed_ints_to_string(
   reversed: List(Int),
   position: Int,
 ) -> Result(String, error.DecodeError) {
   list.reverse(reversed)
-  |> list.try_fold("", fn(acc, cp) {
-    case string.utf_codepoint(cp) {
-      Ok(parsed) -> Ok(string.append(acc, string.from_utf_codepoints([parsed])))
-
-      Error(_) ->
-        Error(error.decode_error(
-          error.DecodeNotImplemented,
-          "tokenizer encountered invalid unicode codepoint",
-          position,
-          None,
-        ))
+  |> list.try_fold(bb.new(), fn(builder, cp) {
+    append_codepoint(builder, cp, position)
+  })
+  |> result.then(fn(builder) {
+    let bits = bb.to_bit_array(builder)
+    case bit_array.to_string(bits) {
+      Ok(text) -> Ok(text)
+      Error(_) -> Error(invalid_unicode_codepoint_error(position))
     }
   })
 }
