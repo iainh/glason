@@ -50,11 +50,7 @@ pub type DecodeOptions {
 }
 
 pub type EncodeOptions {
-  EncodeOptions(
-    escape_mode: EscapeMode,
-    map_mode: MapMode,
-    pretty: PrettyMode,
-  )
+  EncodeOptions(escape_mode: EscapeMode, map_mode: MapMode, pretty: PrettyMode)
 }
 
 pub type Options {
@@ -88,7 +84,10 @@ pub fn set_key_mode(options: DecodeOptions, mode: KeyMode) -> DecodeOptions {
   DecodeOptions(mode, string_mode, float_mode, object_mode, map_mode)
 }
 
-pub fn set_string_mode(options: DecodeOptions, mode: StringMode) -> DecodeOptions {
+pub fn set_string_mode(
+  options: DecodeOptions,
+  mode: StringMode,
+) -> DecodeOptions {
   let DecodeOptions(key_mode, _, float_mode, object_mode, map_mode) = options
   DecodeOptions(key_mode, mode, float_mode, object_mode, map_mode)
 }
@@ -98,17 +97,26 @@ pub fn set_float_mode(options: DecodeOptions, mode: FloatMode) -> DecodeOptions 
   DecodeOptions(key_mode, string_mode, mode, object_mode, map_mode)
 }
 
-pub fn set_object_mode(options: DecodeOptions, mode: ObjectMode) -> DecodeOptions {
+pub fn set_object_mode(
+  options: DecodeOptions,
+  mode: ObjectMode,
+) -> DecodeOptions {
   let DecodeOptions(key_mode, string_mode, float_mode, _, map_mode) = options
   DecodeOptions(key_mode, string_mode, float_mode, mode, map_mode)
 }
 
-pub fn set_decode_map_mode(options: DecodeOptions, mode: MapMode) -> DecodeOptions {
+pub fn set_decode_map_mode(
+  options: DecodeOptions,
+  mode: MapMode,
+) -> DecodeOptions {
   let DecodeOptions(key_mode, string_mode, float_mode, object_mode, _) = options
   DecodeOptions(key_mode, string_mode, float_mode, object_mode, mode)
 }
 
-pub fn set_escape_mode(options: EncodeOptions, mode: EscapeMode) -> EncodeOptions {
+pub fn set_escape_mode(
+  options: EncodeOptions,
+  mode: EscapeMode,
+) -> EncodeOptions {
   let EncodeOptions(_, map_mode, pretty) = options
   EncodeOptions(mode, map_mode, pretty)
 }
@@ -118,15 +126,24 @@ pub fn set_map_mode(options: EncodeOptions, mode: MapMode) -> EncodeOptions {
   EncodeOptions(escape_mode, mode, pretty)
 }
 
-pub fn set_pretty_mode(options: EncodeOptions, mode: PrettyMode) -> EncodeOptions {
+pub fn set_pretty_mode(
+  options: EncodeOptions,
+  mode: PrettyMode,
+) -> EncodeOptions {
   let EncodeOptions(escape_mode, map_mode, _) = options
   EncodeOptions(escape_mode, map_mode, mode)
 }
 
-pub fn merge_decode_options(base: DecodeOptions, overrides: List(fn(DecodeOptions) -> DecodeOptions)) -> DecodeOptions {
+pub fn merge_decode_options(
+  base: DecodeOptions,
+  overrides: List(fn(DecodeOptions) -> DecodeOptions),
+) -> DecodeOptions {
   list.fold(overrides, base, fn(current, apply) { apply(current) })
 }
 
-pub fn merge_encode_options(base: EncodeOptions, overrides: List(fn(EncodeOptions) -> EncodeOptions)) -> EncodeOptions {
+pub fn merge_encode_options(
+  base: EncodeOptions,
+  overrides: List(fn(EncodeOptions) -> EncodeOptions),
+) -> EncodeOptions {
   list.fold(overrides, base, fn(current, apply) { apply(current) })
 }
