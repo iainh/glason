@@ -243,6 +243,32 @@ pub fn decode_iodata_segments_test() {
   |> should.equal(Ok(value.Object([#("a", value.Bool(True))])))
 }
 
+pub fn decode_invalid_utf8_position_test() {
+  let invalid_start: BitArray = <<0xFF:8>>
+
+  glason.decode_binary(invalid_start)
+  |> should.equal(
+    Error(error.decode_error(
+      error.DecodeNotImplemented,
+      "input data was not valid UTF-8",
+      0,
+      option.None,
+    )),
+  )
+
+  let invalid_sequence: BitArray = <<0xE2:8, 0x28:8, 0xA1:8>>
+
+  glason.decode_binary(invalid_sequence)
+  |> should.equal(
+    Error(error.decode_error(
+      error.DecodeNotImplemented,
+      "input data was not valid UTF-8",
+      1,
+      option.None,
+    )),
+  )
+}
+
 pub fn decode_invalid_leading_zero_test() {
   glason.decode("01")
   |> should.be_error()
