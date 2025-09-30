@@ -481,7 +481,7 @@ fn assert_codepoints(json: String, expected: List(Int)) {
 
 fn decode_codepoints(json: String) -> Result(List(Int), error.DecodeError) {
   glason.decode(json)
-  |> result.then(fn(value) {
+  |> result.try(fn(value) {
     case value {
       value.Array([value.String(text)]) ->
         string.to_utf_codepoints(text)

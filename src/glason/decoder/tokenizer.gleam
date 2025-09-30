@@ -608,7 +608,7 @@ fn reversed_ints_to_string(
   |> list.try_fold(bb.new(), fn(builder, cp) {
     append_codepoint(builder, cp, position)
   })
-  |> result.then(fn(builder) {
+  |> result.try(fn(builder) {
     let bits = bb.to_bit_array(builder)
     case bit_array.to_string(bits) {
       Ok(text) -> Ok(text)

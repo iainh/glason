@@ -31,7 +31,7 @@ pub fn decode_binary_with(
   decode_options: options.DecodeOptions,
 ) -> Result(Value, error.DecodeError) {
   prepare_bits(input)
-  |> result.then(fn(text) { parser.parse_binary(text, decode_options) })
+  |> result.try(fn(text) { parser.parse_binary(text, decode_options) })
 }
 
 pub fn decode_iodata(input: List(BitArray)) -> Result(Value, error.DecodeError) {
@@ -44,7 +44,7 @@ pub fn decode_iodata_with(
 ) -> Result(Value, error.DecodeError) {
   bit_array.concat(input)
   |> prepare_bits
-  |> result.then(fn(text) { parser.parse_binary(text, decode_options) })
+  |> result.try(fn(text) { parser.parse_binary(text, decode_options) })
 }
 
 pub fn encode(value: Value) -> Result(String, error.EncodeError) {
